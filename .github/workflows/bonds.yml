@@ -9,32 +9,26 @@ permissions:
   contents: read
 
 jobs:
-  run-scraper:
-    runs-on: ubuntu-latest
+  run-scrapers:
+    runs-on: ubuntu-22.04  # fixed to Ubuntu 22.04
 
     env:
       NEW: ${{ secrets.NEW }}
 
     steps:
-      - name: Checkout repository
+      - name: 📥 Checkout code
         uses: actions/checkout@v3
 
-      - name: Debug - list repository files
+      - name: 🧪 List files (debug)
         run: ls -R
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
+      - name: 📦 Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install tf-playwright-stealth
-          python -m playwright install --with-deps
+          python -m playwright install
 
-      - name: Run AAA Bonds scraper
-        run: |
-          python aaa.py
+      - name: 🚀 Run AAA scraper
+        run: python aaa.py
 
