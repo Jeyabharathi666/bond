@@ -1,4 +1,4 @@
-name: Run AAA Bonds Scraper Every 5 Hours
+name: Run WINT Bonds Scraper Every 5 Hours
 
 on:
   schedule:
@@ -29,8 +29,8 @@ jobs:
           pip install tf-playwright-stealth
           python -m playwright install
 
-      - name: 🚀 Run AAA scraper
-        run: python aaa.py
+      - name: 🚀 Run WINT scraper
+        run: python wint.py
       - name: 🚀 Run INDIABOND
         run: python indiabonds.py
 
