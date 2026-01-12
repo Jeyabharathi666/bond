@@ -327,17 +327,19 @@ def get_security_status(detail_page, issuer, isin):
 
         text = detail_page.locator(
             "xpath=/html/body/div[2]/main/main/article/div[2]/div/div/section[1]/div[2]/div[1]/div[1]"
-        ).inner_text().strip()
+        ).inner_text().strip().lower()
 
-        if "secured" in text.lower():
-            return "SECURED"
-        if "unsecured" in text.lower():
+        # ✅ IMPORTANT: check UNSECURED first
+        if text.startswith("unsecured"):
             return "UNSECURED"
+        if text.startswith("secured"):
+            return "SECURED"
 
         return "UNKNOWN"
 
     except Exception:
         return "UNKNOWN"
+
 
 # ---------- MAIN ----------
 def main():
