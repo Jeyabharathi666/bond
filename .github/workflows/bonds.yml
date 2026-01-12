@@ -30,6 +30,7 @@ jobs:
           python -m playwright install
 
       - name: 🚀 Run AAA scraper
-        #run: python aaa.py
+        run: python aaa.py
+      - name: 🚀 Run INDIABOND
         run: python indiabonds.py
 
