@@ -1,14 +1,7 @@
 from playwright.sync_api import sync_playwright
 import time
-import os
-import tempfile
-from google_sheets import update_google_sheet_by_name
-
-# ---------------- GOOGLE AUTH ---------------- #
-
-SERVICE_ACCOUNT_FILE = tempfile.NamedTemporaryFile(delete=False, suffix=".json").name
-with open(SERVICE_ACCOUNT_FILE, "w") as f:
-    f.write(os.environ["NEW"])
+from datetime import datetime
+from google_sheets import update_google_sheet_by_name, append_footer
 
 # ---------------- CONFIG ---------------- #
 
@@ -38,27 +31,27 @@ def safe_text(page, xpath):
 # ---------------- MAIN ---------------- #
 
 def main():
-    data_rows = []
+    rows = []
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
         page.goto(URL, timeout=60000)
 
-        # Wait for first bond card
-        page.wait_for_selector("xpath=//ul//li[1]//a", timeout=20000)
+        # wait for first bond card
+        page.wait_for_selector("xpath=//ul/div/li[1]//a", timeout=20000)
 
-        # Scroll to load all cards
+        # scroll to load all cards
         prev = 0
         for _ in range(25):
             page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             time.sleep(1)
-            count = page.locator("xpath=//ul//li").count()
+            count = page.locator("xpath=//ul/div/li").count()
             if count == prev:
                 break
             prev = count
 
-        total = page.locator("xpath=//ul//li").count()
+        total = page.locator("xpath=//ul/div/li").count()
         print(f"\nTotal bonds found: {total}\n")
 
         for i in range(1, total + 1):
@@ -67,6 +60,7 @@ def main():
             company = safe_text(page, f"{base}/div[1]/div/div[1]/div/p")
             rating  = safe_text(page, f"{base}/div[1]/div/div[1]/div/div/div[1]/span")
             sold    = safe_text(page, f"{base}/div[1]/div/div[2]/span/span")
+            sold    = sold.replace("Sold", "").strip()
 
             ytm = safe_text(page, f"{base}/div[2]/div/div/div[1]/div/div[2]/div[1]/h3")
             tenure = safe_text(page, f"{base}/div[2]/div/div/div[2]/div/div[2]/div[1]/h3")
@@ -75,7 +69,7 @@ def main():
 
             print(f"{i}. {company} | {sold} | {ytm}")
 
-            data_rows.append([
+            rows.append([
                 company,
                 rating,
                 sold,
@@ -87,16 +81,23 @@ def main():
 
         browser.close()
 
-    # ---------------- PUSH TO SHEET ---------------- #
-
+    # push data to sheet
     update_google_sheet_by_name(
         SHEET_ID,
         WORKSHEET_NAME,
         HEADERS,
-        data_rows
+        rows
     )
 
-    print(f"\n✅ Data pushed successfully to worksheet: {WORKSHEET_NAME}")
+    # append timestamp footer
+    timestamp = datetime.now().strftime("Updated on %d-%m-%Y %H:%M:%S")
+    append_footer(
+        SHEET_ID,
+        WORKSHEET_NAME,
+        [timestamp]
+    )
+
+    print("✅ Sheet updated with timestamp")
 
 # ---------------- RUN ---------------- #
 
