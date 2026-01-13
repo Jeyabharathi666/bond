@@ -138,14 +138,13 @@ def main():
 
 if __name__ == "__main__":
     main()
-'''
-from playwright.sync_api import sync_playwright
+'''from playwright.sync_api import sync_playwright
 import time
 import re
 from datetime import datetime
 from google_sheets import update_google_sheet_by_name, append_footer
 
-# ---------------- CONFIG ---------------- #
+# ================= CONFIG ================= #
 
 SHEET_ID = "1QN5GMlxBKMudeHeWF-Kzt9XsqTt01am7vze1wBjvIdE"
 
@@ -162,7 +161,7 @@ HEADERS = [
     "Principal"
 ]
 
-# ---------------- HELPERS ---------------- #
+# ================= HELPERS ================= #
 
 def safe_text(page, xpath):
     try:
@@ -176,27 +175,35 @@ def extract_live_count(text):
 
 def parse_price(text):
     """
-    Converts:
-    1k  -> 1000
-    1L / 1lk -> 100000
-    ₹5,000 -> 5000
+    Handles:
+    Min. ₹1k
+    Min. 10k
+    1k / 10k
+    1L / 1lk / 2L
+    ₹5,000
     """
     if not text:
         return "NA"
 
-    t = text.lower().replace("₹", "").replace(",", "").strip()
+    t = text.lower()
+    t = t.replace("₹", "").replace(",", "")
+    t = t.replace("minimum", "").replace("min.", "").replace("min", "").strip()
 
-    if t.endswith("k"):
-        return int(float(t[:-1]) * 1000)
-    if t.endswith("lk") or t.endswith("l"):
-        return int(float(t.replace("lk", "").replace("l", "")) * 100000)
+    m = re.search(r"(\d+(\.\d+)?)", t)
+    if not m:
+        return "NA"
 
-    if t.isdigit():
-        return int(t)
+    num = float(m.group(1))
 
-    return "NA"
+    if "lk" in t or re.search(r"\bl\b", t):
+        return int(num * 100000)
 
-# ---------------- SCRAPER ---------------- #
+    if "k" in t:
+        return int(num * 1000)
+
+    return int(num)
+
+# ================= SCRAPER ================= #
 
 def scrape_filter(page, filter_name):
     url = f"https://www.wintwealth.com/bonds/listing/?filterBy={filter_name}"
@@ -205,7 +212,7 @@ def scrape_filter(page, filter_name):
     page.goto(url, timeout=60000)
     page.wait_for_selector("xpath=//ul/div/li[1]//a", timeout=20000)
 
-    # -------- LIVE COUNT -------- #
+    # -------- LIVE BOND COUNT -------- #
 
     live_text = safe_text(
         page,
@@ -216,9 +223,7 @@ def scrape_filter(page, filter_name):
     print(f"🟢 Live bonds count: {live_count}")
 
     if live_count == 0:
-        update_google_sheet_by_name(
-            SHEET_ID, filter_name, HEADERS, []
-        )
+        update_google_sheet_by_name(SHEET_ID, filter_name, HEADERS, [])
         return
 
     # -------- SCROLL -------- #
@@ -237,10 +242,13 @@ def scrape_filter(page, filter_name):
 
     rows = []
 
-    # -------- EXTRACT -------- #
+    # -------- EXTRACT LIVE ONLY -------- #
 
     for i in range(1, limit + 1):
-        base = f"/html/body/div[2]/div/div[2]/div/div[1]/div/div[2]/ul/div/li[{i}]/div/a"
+        base = (
+            "/html/body/div[2]/div/div[2]/div/div[1]/div/"
+            f"div[2]/ul/div/li[{i}]/div/a"
+        )
 
         company = safe_text(page, f"{base}/div[1]/div/div[1]/div/p")
         rating  = safe_text(page, f"{base}/div[1]/div/div[1]/div/div/div[1]/span")
@@ -288,14 +296,15 @@ def scrape_filter(page, filter_name):
         [timestamp]
     )
 
-    print(f"✅ {filter_name} updated with PRICE")
+    print(f"✅ {filter_name} updated correctly (LIVE ONLY)")
 
-# ---------------- MAIN ---------------- #
+# ================= MAIN ================= #
 
 def main():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
 
+        # IMPORTANT: new page per filter (prevents mixing)
         for f in FILTERS:
             page = browser.new_page()
             scrape_filter(page, f)
@@ -303,5 +312,8 @@ def main():
 
         browser.close()
 
+# ================= RUN ================= #
+
 if __name__ == "__main__":
     main()
+
