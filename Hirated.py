@@ -138,7 +138,8 @@ def main():
 
 if __name__ == "__main__":
     main()
-'''from playwright.sync_api import sync_playwright
+'''
+from playwright.sync_api import sync_playwright
 import time
 import re
 from datetime import datetime
