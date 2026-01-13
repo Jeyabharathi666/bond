@@ -103,8 +103,7 @@ def main():
 
 if __name__ == "__main__":
     main()
-'''
-from playwright.sync_api import sync_playwright
+'''from playwright.sync_api import sync_playwright
 import time
 import re
 from datetime import datetime
@@ -114,7 +113,7 @@ from google_sheets import update_google_sheet_by_name, append_footer
 
 SHEET_ID = "1QN5GMlxBKMudeHeWF-Kzt9XsqTt01am7vze1wBjvIdE"
 
-FILTERS = ["winthrat", "wintaxbt"]
+FILTERS = ["HIGH_RATED", "TAX_BENEFIT"]
 
 HEADERS = [
     "Company",
@@ -159,9 +158,12 @@ def scrape_filter(page, filter_name):
 
     if live_count == 0:
         print("⚠ No live bonds found")
+        update_google_sheet_by_name(
+            SHEET_ID, filter_name, HEADERS, []
+        )
         return
 
-    # -------- SCROLL -------- #
+    # -------- SCROLL TO LOAD -------- #
 
     prev = 0
     for _ in range(25):
@@ -177,7 +179,7 @@ def scrape_filter(page, filter_name):
 
     rows = []
 
-    # -------- EXTRACT LIVE ONLY -------- #
+    # -------- EXTRACT ONLY LIVE -------- #
 
     for i in range(1, limit + 1):
         base = f"/html/body/div[2]/div/div[2]/div/div[1]/div/div[2]/ul/div/li[{i}]/div/a"
@@ -220,19 +222,23 @@ def scrape_filter(page, filter_name):
         [timestamp]
     )
 
-    print(f"✅ {filter_name} updated (LIVE ONLY)")
+    print(f"✅ {filter_name} updated correctly (LIVE ONLY)")
 
-# ---------------- MAIN ---------------- #
+# ---------------- MAIN (CRITICAL FIX HERE) ---------------- #
 
 def main():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
 
+        # 🔑 NEW PAGE FOR EACH FILTER (FIXES DATA MIXING)
         for f in FILTERS:
+            page = browser.new_page()
             scrape_filter(page, f)
+            page.close()
 
         browser.close()
+
+# ---------------- RUN ---------------- #
 
 if __name__ == "__main__":
     main()
