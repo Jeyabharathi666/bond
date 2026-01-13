@@ -29,8 +29,8 @@ jobs:
           pip install tf-playwright-stealth
           python -m playwright install
 
-      - name: 🚀 Run WINT scraper
-        run: python wint.py
+      #- name: 🚀 Run WINT scraper
+        #run: python wint.py
       - name: 🚀 Run INDIABOND
         run: python indiabonds.py
       - name: 🚀 Run High Rated
