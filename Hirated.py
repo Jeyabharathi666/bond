@@ -8,7 +8,7 @@ from google_sheets import update_google_sheet_by_name, append_footer
 URL = "https://www.wintwealth.com/bonds/listing/?filterBy=HIGH_RATED"
 
 SHEET_ID = "1QN5GMlxBKMudeHeWF-Kzt9XsqTt01am7vze1wBjvIdE"
-WORKSHEET_NAME = "HIGH_RATED"
+WORKSHEET_NAME = "winthrat"
 
 HEADERS = [
     "Company",
