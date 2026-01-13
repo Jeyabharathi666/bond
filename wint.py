@@ -1,4 +1,4 @@
-'''from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright
 import time
 import os
 from google_sheets import update_google_sheet_by_name
@@ -121,7 +121,7 @@ def main():
 
 if __name__ == "__main__":
     main()
-'''
+
 '''
 from playwright.sync_api import sync_playwright
 import time
@@ -582,6 +582,7 @@ if __name__ == "__main__":
     main()
 
 '''
+'''
 from playwright.sync_api import sync_playwright
 import time
 import os
@@ -755,3 +756,4 @@ def main():
 if __name__ == "__main__":
     main()
 
+'''
