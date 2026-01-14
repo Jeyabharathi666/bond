@@ -2,13 +2,12 @@ from playwright.sync_api import sync_playwright
 from datetime import datetime
 import time
 
-# import your existing helper (UNCHANGED)
-import google_sheets
+import google_sheets   # DO NOT MODIFY
+
+URL = "https://www.wintwealth.com/bonds/listing/?filterBy=HIGH_RATED"
 
 SHEET_ID = "1QN5GMlxBKMudeHeWF-Kzt9XsqTt01am7vze1wBjvIdE"
 WORKSHEET_NAME = "HIGH_RATED"
-
-URL = "https://www.wintwealth.com/bonds/listing/?filterBy=HIGH_RATED"
 
 HEADERS = [
     "Company",
@@ -20,47 +19,69 @@ HEADERS = [
     "Principal"
 ]
 
+def safe_text(el):
+    return el.inner_text().strip() if el else "NA"
+
 def scrape_high_rated():
     rows = []
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
+
         page.goto(URL, timeout=60000)
 
-        page.wait_for_selector("ul div li", timeout=60000)
+        # ensure correct filter
+        assert "filterBy=HIGH_RATED" in page.url, "❌ WRONG URL LOADED"
+
+        page.wait_for_selector(
+            'xpath=/html/body/div[2]/div/div[2]/div/div[1]/div/div[2]/ul/div/li',
+            timeout=60000
+        )
+
         time.sleep(2)
 
-        bonds = page.query_selector_all("ul div li")
+        cards = page.query_selector_all(
+            'xpath=/html/body/div[2]/div/div[2]/div/div[1]/div/div[2]/ul/div/li'
+        )
 
-        print(f"\n🔎 Total bonds found: {len(bonds)}\n")
-        print("=" * 90)
+        print(f"\n✅ FOUND {len(cards)} HIGH RATED BONDS\n" + "=" * 90)
 
-        for i, bond in enumerate(bonds, start=1):
+        for i, card in enumerate(cards, start=1):
             try:
-                company = bond.query_selector("p").inner_text().strip()
+                company = safe_text(card.query_selector(
+                    'xpath=.//div/a/div[1]/div/div[1]/div/p'
+                ))
 
-                rating = bond.query_selector(
-                    "span[class*='gNQmnK']"
-                ).inner_text().strip()
+                rating = safe_text(card.query_selector(
+                    'xpath=.//span[@class="sc-a845de38-2 gNQmnK"]'
+                ))
 
-                spans = bond.query_selector_all("div span")
+                min_price = safe_text(card.query_selector(
+                    'xpath=.//div/a/div[1]/div/div[1]/div/div/span[1]'
+                ))
 
-                price = spans[0].inner_text().strip() if len(spans) > 0 else "NA"
-                ytm = spans[1].inner_text().strip() if len(spans) > 1 else "NA"
-                tenure = spansnspans = spans[2].inner_text().strip() if len(spans) > 2 else "NA"
+                ytm = safe_text(card.query_selector(
+                    'xpath=.//div/a/div[1]/div/div[1]/div/div/span[2]'
+                ))
 
-                interest = bond.query_selector(
-                    "div:nth-child(2) span"
-                ).inner_text().strip()
+                tenure = safe_text(card.query_selector(
+                    'xpath=.//div/a/div[1]/div/div[1]/div/div/span[3]'
+                ))
 
-                principal = bond.query_selector("h3").inner_text().strip()
+                interest = safe_text(card.query_selector(
+                    'xpath=.//div/a/div[2]/div/div/div[3]/div/div[1]/span'
+                ))
 
-                # Print to terminal (as requested)
+                principal = safe_text(card.query_selector(
+                    'xpath=.//div/a/div[2]/div/div/div[4]/div/div[2]/div[1]/h3'
+                ))
+
+                # PRINT TO TERMINAL FOR DEBUG
                 print(f"Bond #{i}")
                 print(f"Company   : {company}")
                 print(f"Rating    : {rating}")
-                print(f"Min Price : {price}")
+                print(f"Min Price : {min_price}")
                 print(f"YTM       : {ytm}")
                 print(f"Tenure    : {tenure}")
                 print(f"Interest  : {interest}")
@@ -68,35 +89,32 @@ def scrape_high_rated():
                 print("-" * 90)
 
                 rows.append([
-                    company,
-                    rating,
-                    price,
-                    ytm,
-                    tenure,
-                    interest,
-                    principal
+                    company, rating, min_price,
+                    ytm, tenure, interest, principal
                 ])
 
             except Exception as e:
-                print(f"❌ Error parsing bond #{i}: {e}")
+                print(f"❌ ERROR in bond #{i}: {e}")
 
         browser.close()
 
     return rows
 
 if __name__ == "__main__":
-    data_rows = scrape_high_rated()
+    data = scrape_high_rated()
 
-    if data_rows:
+    if data:
         google_sheets.update_google_sheet_by_name(
             sheet_id=SHEET_ID,
             worksheet_name=WORKSHEET_NAME,
             headers=HEADERS,
-            rows=data_rows
+            rows=data
         )
 
         google_sheets.append_footer(
             sheet_id=SHEET_ID,
             worksheet_name=WORKSHEET_NAME,
-            footer_row=[f"Last updated: {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}"]
+            footer_row=[
+                f"Last updated: {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}"
+            ]
         )
