@@ -19,7 +19,7 @@ HEADERS = [
 
 def safe_text(page, xpath):
     try:
-        return page.locator(f"xpath={xpath}").inner_text(timeout=3000).strip()
+        return page.locator(f"xpath={xpath}").inner_text(timeout=2000).strip()
     except:
         return "NA"
 
@@ -27,15 +27,14 @@ def main():
     data_rows = []
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(
-            headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage"]
-        )
+        browser = p.chromium.launch(headless=True)
         page = browser.new_page()
         page.goto(URL, timeout=60000)
 
-        page.wait_for_selector("xpath=//ul/div/li[1]//a", timeout=30000)
+        # wait for first bond card
+        page.wait_for_selector("xpath=//ul/div/li[1]//a", timeout=20000)
 
+        # scroll to load all cards
         prev = 0
         for _ in range(25):
             page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
@@ -46,7 +45,7 @@ def main():
             prev = count
 
         total = page.locator("xpath=//ul/div/li").count()
-        print(f"\nTotal HIGH_RATED bonds found: {total}\n")
+        print(f"\nTotal bonds found: {total}\n")
 
         for i in range(1, total + 1):
             base = f"/html/body/div[2]/div/div[2]/div/div[1]/div/div[2]/ul/div/li[{i}]/div/a"
@@ -60,7 +59,7 @@ def main():
             interest = safe_text(page, f"{base}/div[2]/div/div/div[3]/div/div[2]/div[1]/h3")
             principal = safe_text(page, f"{base}/div[2]/div/div/div[4]/div/div[2]/div[1]/h3")
 
-            print(f"{i}. {company} | {ytm}")
+            print(f"{i}. {company} | {sold} | {ytm}")
 
             data_rows.append([
                 company,
@@ -74,6 +73,7 @@ def main():
 
         browser.close()
 
+    # push to Google Sheet using your existing helper
     update_google_sheet_by_name(
         SHEET_ID,
         WORKSHEET_NAME,
@@ -83,6 +83,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 '''
 from playwright.sync_api import sync_playwright
