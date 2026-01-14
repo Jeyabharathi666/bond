@@ -1,4 +1,4 @@
-'''
+
 from playwright.sync_api import sync_playwright
 import time
 import re
@@ -262,3 +262,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+'''
