@@ -1,212 +1,102 @@
 from playwright.sync_api import sync_playwright
+from datetime import datetime
 import time
-from google_sheets import update_google_sheet_by_name
 
-URL = "https://www.wintwealth.com/bonds/listing/?filterBy=HIGH_RATED"
+# import your existing helper (UNCHANGED)
+import google_sheets
 
 SHEET_ID = "1QN5GMlxBKMudeHeWF-Kzt9XsqTt01am7vze1wBjvIdE"
 WORKSHEET_NAME = "HIGH_RATED"
 
+URL = "https://www.wintwealth.com/bonds/listing/?filterBy=HIGH_RATED"
+
 HEADERS = [
     "Company",
     "Rating",
-    "Sold %",
+    "Min Price",
     "YTM",
     "Tenure",
     "Interest",
     "Principal"
 ]
 
-def safe_text(page, xpath):
-    try:
-        return page.locator(f"xpath={xpath}").inner_text(timeout=2000).strip()
-    except:
-        return "NA"
-
-def main():
-    data_rows = []
+def scrape_high_rated():
+    rows = []
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
         page.goto(URL, timeout=60000)
 
-        # wait for first bond card
-        page.wait_for_selector("xpath=//ul/div/li[1]//a", timeout=20000)
+        page.wait_for_selector("ul div li", timeout=60000)
+        time.sleep(2)
 
-        # scroll to load all cards
-        prev = 0
-        for _ in range(25):
-            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            time.sleep(1)
-            count = page.locator("xpath=//ul/div/li").count()
-            if count == prev:
-                break
-            prev = count
+        bonds = page.query_selector_all("ul div li")
 
-        total = page.locator("xpath=//ul/div/li").count()
-        print(f"\nTotal bonds found: {total}\n")
+        print(f"\n🔎 Total bonds found: {len(bonds)}\n")
+        print("=" * 90)
 
-        for i in range(1, total + 1):
-            base = f"/html/body/div[2]/div/div[2]/div/div[1]/div/div[2]/ul/div/li[{i}]/div/a"
+        for i, bond in enumerate(bonds, start=1):
+            try:
+                company = bond.query_selector("p").inner_text().strip()
 
-            company = safe_text(page, f"{base}/div[1]/div/div[1]/div/p")
-            rating  = safe_text(page, f"{base}/div[1]/div/div[1]/div/div/div[1]/span")
-            sold    = safe_text(page, f"{base}/div[1]/div/div[2]/span/span").replace("Sold", "").strip()
+                rating = bond.query_selector(
+                    "span[class*='gNQmnK']"
+                ).inner_text().strip()
 
-            ytm = safe_text(page, f"{base}/div[2]/div/div/div[1]/div/div[2]/div[1]/h3")
-            tenure = safe_text(page, f"{base}/div[2]/div/div/div[2]/div/div[2]/div[1]/h3")
-            interest = safe_text(page, f"{base}/div[2]/div/div/div[3]/div/div[2]/div[1]/h3")
-            principal = safe_text(page, f"{base}/div[2]/div/div/div[4]/div/div[2]/div[1]/h3")
+                spans = bond.query_selector_all("div span")
 
-            print(f"{i}. {company} | {sold} | {ytm}")
+                price = spans[0].inner_text().strip() if len(spans) > 0 else "NA"
+                ytm = spans[1].inner_text().strip() if len(spans) > 1 else "NA"
+                tenure = spansnspans = spans[2].inner_text().strip() if len(spans) > 2 else "NA"
 
-            data_rows.append([
-                company,
-                rating,
-                sold,
-                ytm,
-                tenure,
-                interest,
-                principal
-            ])
+                interest = bond.query_selector(
+                    "div:nth-child(2) span"
+                ).inner_text().strip()
+
+                principal = bond.query_selector("h3").inner_text().strip()
+
+                # Print to terminal (as requested)
+                print(f"Bond #{i}")
+                print(f"Company   : {company}")
+                print(f"Rating    : {rating}")
+                print(f"Min Price : {price}")
+                print(f"YTM       : {ytm}")
+                print(f"Tenure    : {tenure}")
+                print(f"Interest  : {interest}")
+                print(f"Principal : {principal}")
+                print("-" * 90)
+
+                rows.append([
+                    company,
+                    rating,
+                    price,
+                    ytm,
+                    tenure,
+                    interest,
+                    principal
+                ])
+
+            except Exception as e:
+                print(f"❌ Error parsing bond #{i}: {e}")
 
         browser.close()
 
-    # push to Google Sheet using your existing helper
-    update_google_sheet_by_name(
-        SHEET_ID,
-        WORKSHEET_NAME,
-        HEADERS,
-        data_rows
-    )
+    return rows
 
 if __name__ == "__main__":
-    main()
+    data_rows = scrape_high_rated()
 
-
-'''
-from playwright.sync_api import sync_playwright
-import time, re
-from datetime import datetime
-from google_sheets import update_google_sheet_by_name, append_footer
-
-SHEET_ID = "1QN5GMlxBKMudeHeWF-Kzt9XsqTt01am7vze1wBjvIdE"
-WORKSHEET_NAME = "HIGH_RATED"
-
-HEADERS = [
-    "Company",
-    "Rating",
-    "Price",
-    "Sold %",
-    "YTM",
-    "Tenure",
-    "Interest",
-    "Principal"
-]
-
-# ---------------- HELPERS ---------------- #
-
-def safe_text(page, xpath):
-    try:
-        return page.locator(f"xpath={xpath}").inner_text(timeout=3000).strip()
-    except:
-        return ""
-
-def extract_live_count(text):
-    m = re.search(r"(\d+)", text)
-    return int(m.group(1)) if m else 0
-
-def parse_price(text):
-    if not text:
-        return "NA"
-
-    t = text.lower().replace("₹", "").replace(",", "")
-    t = t.replace("minimum", "").replace("min.", "").replace("min", "").strip()
-
-    m = re.search(r"(\d+(\.\d+)?)", t)
-    if not m:
-        return "NA"
-
-    num = float(m.group(1))
-
-    if "lk" in t or re.search(r"\bl\b", t):
-        return int(num * 100000)
-    if "k" in t:
-        return int(num * 1000)
-
-    return int(num)
-
-# ---------------- MAIN ---------------- #
-
-def main():
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context()
-        page = context.new_page()
-
-        print("\n🔵 STARTING HIGH_RATED SCRAPE")
-
-        page.goto(
-            "https://www.wintwealth.com/bonds/listing/?filterBy=HIGH_RATED",
-            timeout=60000
-        )
-        page.wait_for_selector("xpath=//ul/div/li[1]//a", timeout=30000)
-
-        live_text = safe_text(
-            page,
-            "/html/body/div[2]/div/div[2]/div/div[1]/div/div[1]/div/div[1]/div[1]/h2"
-        )
-        live_count = extract_live_count(live_text)
-
-        print(f"🟢 HIGH_RATED live bonds: {live_count}")
-
-        # -------- SCROLL ONLY UNTIL LIVE COUNT -------- #
-        for _ in range(30):
-            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            time.sleep(1)
-            if page.locator("xpath=//ul/div/li").count() >= live_count:
-                break
-
-        rows = []
-
-        for i in range(1, live_count + 1):
-            base = (
-                "/html/body/div[2]/div/div[2]/div/div[1]/div/"
-                f"div[2]/ul/div/li[{i}]/div/a"
-            )
-
-            company = safe_text(page, f"{base}/div[1]/div/div[1]/div/p")
-            rating = safe_text(page, f"{base}/div[1]/div/div[1]/div/div/div[1]/span")
-            price = parse_price(
-                safe_text(page, f"{base}/div[1]/div/div[1]/div/div/span")
-            )
-            sold = safe_text(page, f"{base}/div[1]/div/div[2]/span/span")
-            sold = sold.replace("Sold", "").strip()
-
-            ytm = safe_text(page, f"{base}/div[2]/div/div/div[1]/div/div[2]/div[1]/h3")
-            tenure = safe_text(page, f"{base}/div[2]/div/div/div[2]/div/div[2]/div[1]/h3")
-            interest = safe_text(page, f"{base}/div[2]/div/div/div[3]/div/div[2]/div[1]/h3")
-            principal = safe_text(page, f"{base}/div[2]/div/div/div[4]/div/div[2]/div[1]/h3")
-
-            print(f"{i}. {company} | YTM={ytm}")
-
-            rows.append([
-                company, rating, price, sold, ytm, tenure, interest, principal
-            ])
-
-        update_google_sheet_by_name(SHEET_ID, WORKSHEET_NAME, HEADERS, rows)
-        append_footer(
-            SHEET_ID,
-            WORKSHEET_NAME,
-            [datetime.now().strftime("Updated on %d-%m-%Y %H:%M:%S")]
+    if data_rows:
+        google_sheets.update_google_sheet_by_name(
+            sheet_id=SHEET_ID,
+            worksheet_name=WORKSHEET_NAME,
+            headers=HEADERS,
+            rows=data_rows
         )
 
-        print("✅ HIGH_RATED sheet updated successfully")
-
-        context.close()
-        browser.close()
-
-if __name__ == "__main__":
-    main()
-'''
+        google_sheets.append_footer(
+            sheet_id=SHEET_ID,
+            worksheet_name=WORKSHEET_NAME,
+            footer_row=[f"Last updated: {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}"]
+        )
