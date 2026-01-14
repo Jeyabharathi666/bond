@@ -1,0 +1,80 @@
+from playwright.sync_api import sync_playwright
+import time, re
+from datetime import datetime
+from google_sheets import update_google_sheet_by_name, append_footer
+
+SHEET_ID = "1QN5GMlxBKMudeHeWF-Kzt9XsqTt01am7vze1wBjvIdE"
+WORKSHEET_NAME = "TAX_BENEFIT"
+
+HEADERS = ["Company","Rating","Price","Sold %","YTM","Tenure","Interest","Principal"]
+
+def safe_text(page, xpath):
+    try:
+        return page.locator(f"xpath={xpath}").inner_text(timeout=3000).strip()
+    except:
+        return ""
+
+def extract_live_count(text):
+    m = re.search(r"(\d+)", text)
+    return int(m.group(1)) if m else 0
+
+def parse_price(text):
+    if not text:
+        return "NA"
+    t = text.lower().replace("₹","").replace(",","")
+    t = t.replace("minimum","").replace("min.","").replace("min","").strip()
+    m = re.search(r"(\d+(\.\d+)?)", t)
+    if not m:
+        return "NA"
+    num = float(m.group(1))
+    if "lk" in t or re.search(r"\bl\b", t):
+        return int(num * 100000)
+    if "k" in t:
+        return int(num * 1000)
+    return int(num)
+
+def main():
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context()
+        page = context.new_page()
+
+        print("\n🟣 STARTING TAX_BENEFIT SCRAPE")
+
+        page.goto("https://www.wintwealth.com/bonds/listing/?filterBy=TAX_BENEFIT", timeout=60000)
+        page.wait_for_selector("xpath=//ul/div/li[1]//a", timeout=30000)
+
+        live_text = safe_text(page, "/html/body/div[2]/div/div[2]/div/div[1]/div/div[1]/div/div[1]/div[1]/h2")
+        live_count = extract_live_count(live_text)
+
+        print(f"🟢 TAX_BENEFIT live bonds: {live_count}")
+
+        for _ in range(30):
+            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            time.sleep(1)
+
+        rows = []
+        for i in range(1, live_count + 1):
+            base = f"/html/body/div[2]/div/div[2]/div/div[1]/div/div[2]/ul/div/li[{i}]/div/a"
+
+            rows.append([
+                safe_text(page, f"{base}/div[1]/div/div[1]/div/p"),
+                safe_text(page, f"{base}/div[1]/div/div[1]/div/div/div[1]/span"),
+                parse_price(safe_text(page, f"{base}/div[1]/div/div[1]/div/div/span")),
+                safe_text(page, f"{base}/div[1]/div/div[2]/span/span").replace("Sold","").strip(),
+                safe_text(page, f"{base}/div[2]/div/div/div[1]/div/div[2]/div[1]/h3"),
+                safe_text(page, f"{base}/div[2]/div/div/div[2]/div/div[2]/div[1]/h3"),
+                safe_text(page, f"{base}/div[2]/div/div/div[3]/div/div[2]/div[1]/h3"),
+                safe_text(page, f"{base}/div[2]/div/div/div[4]/div/div[2]/div[1]/h3"),
+            ])
+
+        update_google_sheet_by_name(SHEET_ID, WORKSHEET_NAME, HEADERS, rows)
+        append_footer(SHEET_ID, WORKSHEET_NAME, [datetime.now().strftime("Updated %d-%m-%Y %H:%M:%S")])
+
+        print("✅ TAX_BENEFIT sheet updated successfully")
+
+        context.close()
+        browser.close()
+
+if __name__ == "__main__":
+    main()
