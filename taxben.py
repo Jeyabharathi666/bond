@@ -1,6 +1,8 @@
 from playwright.sync_api import sync_playwright
+from datetime import datetime
 import time
-from google_sheets import update_google_sheet_by_name
+
+import google_sheets   # DO NOT CHANGE
 
 URL = "https://www.wintwealth.com/bonds/listing/?filterBy=TAX_BENEFIT"
 
@@ -10,76 +12,91 @@ WORKSHEET_NAME = "TAX_BENEFIT"
 HEADERS = [
     "Company",
     "Rating",
-    "Sold %",
+    "Min Price",
     "YTM",
-    "Tenure",
+    "Tenure / Maturity",
     "Interest",
     "Principal"
 ]
 
-def safe_text(page, xpath):
-    try:
-        return page.locator(f"xpath={xpath}").inner_text(timeout=3000).strip()
-    except:
-        return "NA"
-
-def main():
-    data_rows = []
+def scrape_tax_benefit():
+    rows = []
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(
-            headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage"]
-        )
+        browser = p.chromium.launch(headless=True)
         page = browser.new_page()
         page.goto(URL, timeout=60000)
 
-        page.wait_for_selector("xpath=//ul/div/li[1]//a", timeout=30000)
+        page.wait_for_selector("ul div li", timeout=60000)
+        time.sleep(2)
 
-        prev = 0
-        for _ in range(25):
-            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            time.sleep(1)
-            count = page.locator("xpath=//ul/div/li").count()
-            if count == prev:
-                break
-            prev = count
+        bonds = page.query_selector_all("ul div li")
 
-        total = page.locator("xpath=//ul/div/li").count()
-        print(f"\nTotal TAX_BENEFIT bonds found: {total}\n")
+        print(f"\n🔎 TAX BENEFIT bonds found: {len(bonds)}\n")
+        print("=" * 95)
 
-        for i in range(1, total + 1):
-            base = f"/html/body/div[2]/div/div[2]/div/div[1]/div/div[2]/ul/div/li[{i}]/div/a"
+        for i, bond in enumerate(bonds, start=1):
+            try:
+                company = bond.query_selector("p").inner_text().strip()
 
-            company = safe_text(page, f"{base}/div[1]/div/div[1]/div/p")
-            rating  = safe_text(page, f"{base}/div[1]/div/div[1]/div/div/div[1]/span")
-            sold    = safe_text(page, f"{base}/div[1]/div/div[2]/span/span").replace("Sold", "").strip()
+                rating = bond.query_selector(
+                    "span[class*='gNQmnK'], span[class*='rating']"
+                )
+                rating = rating.inner_text().strip() if rating else "NA"
 
-            ytm = safe_text(page, f"{base}/div[2]/div/div/div[1]/div/div[2]/div[1]/h3")
-            tenure = safe_text(page, f"{base}/div[2]/div/div/div[2]/div/div[2]/div[1]/h3")
-            interest = safe_text(page, f"{base}/div[2]/div/div/div[3]/div/div[2]/div[1]/h3")
-            principal = safe_text(page, f"{base}/div[2]/div/div/div[4]/div/div[2]/div[1]/h3")
+                spans = bond.query_selector_all("div span")
 
-            print(f"{i}. {company} | {ytm}")
+                price = spans[0].inner_text().strip() if len(spans) > 0 else "NA"
+                ytm = spans[1].inner_text().strip() if len(spans) > 1 else "NA"
+                tenure = spans[2].inner_text().strip() if len(spans) > 2 else "NA"
 
-            data_rows.append([
-                company,
-                rating,
-                sold,
-                ytm,
-                tenure,
-                interest,
-                principal
-            ])
+                interest = bond.query_selector(
+                    "div:nth-child(2) span"
+                ).inner_text().strip()
+
+                principal = bond.query_selector("h3").inner_text().strip()
+
+                # TERMINAL OUTPUT (as requested)
+                print(f"Bond #{i}")
+                print(f"Company    : {company}")
+                print(f"Rating     : {rating}")
+                print(f"Min Price  : {price}")
+                print(f"YTM        : {ytm}")
+                print(f"Tenure     : {tenure}")
+                print(f"Interest   : {interest}")
+                print(f"Principal  : {principal}")
+                print("-" * 95)
+
+                rows.append([
+                    company,
+                    rating,
+                    price,
+                    ytm,
+                    tenure,
+                    interest,
+                    principal
+                ])
+
+            except Exception as e:
+                print(f"❌ Error in bond #{i}: {e}")
 
         browser.close()
 
-    update_google_sheet_by_name(
-        SHEET_ID,
-        WORKSHEET_NAME,
-        HEADERS,
-        data_rows
-    )
+    return rows
 
 if __name__ == "__main__":
-    main()
+    data = scrape_tax_benefit()
+
+    if data:
+        google_sheets.update_google_sheet_by_name(
+            sheet_id=SHEET_ID,
+            worksheet_name=WORKSHEET_NAME,
+            headers=HEADERS,
+            rows=data
+        )
+
+        google_sheets.append_footer(
+            sheet_id=SHEET_ID,
+            worksheet_name=WORKSHEET_NAME,
+            footer_row=[f"Last updated: {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}"]
+        )
