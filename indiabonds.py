@@ -7,15 +7,15 @@ from google_sheets import update_google_sheet_by_name, append_footer
 SHEET_ID = "1QN5GMlxBKMudeHeWF-Kzt9XsqTt01am7vze1wBjvIdE"
 WORKSHEET_NAME = "indiabonds"
 
+# ❌ REMOVED ordering parameter to preserve UI order
 BASE_URL = (
     "https://www.indiabonds.com/search/"
     "?filter=%7B%22curated_pack_filter%22%3A%5B%22New+Arrivals%22%5D%7D"
-    "&ordering=-vendor_security_offer_price__yield_value"
 )
 
 ITEMS_PER_PAGE = 9
-TOTAL_PAGES = 4          # Known last page
-LAST_PAGE_SINGLE = 4     # Page 4 has only one valid item
+TOTAL_PAGES = 4
+LAST_PAGE_SINGLE = 4
 
 HEADERS = [
     "Company",
@@ -46,11 +46,10 @@ with sync_playwright() as p:
         print(f"\n--- PAGE {page_no} ---")
         page.goto(url, timeout=60000)
 
-        # Trigger JS render
+        # Ensure JS-rendered content loads
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         time.sleep(3)
 
-        # Page 4 → only 1 record
         item_range = [1] if page_no == LAST_PAGE_SINGLE else range(1, ITEMS_PER_PAGE + 1)
 
         for i in item_range:
@@ -85,7 +84,6 @@ with sync_playwright() as p:
                     f"xpath={base}/div[3]/div[6]/p[2]"
                 ).text_content(timeout=5000).strip()
 
-                # Interest Payment from table
                 interest_payment = page.locator(
                     f"xpath=/html/body/div[1]/div[2]/div[2]/div[4]/div/table/tbody/tr[{i}]/td[5]/div"
                 ).text_content(timeout=5000).strip()
@@ -96,6 +94,7 @@ with sync_playwright() as p:
                     else "UNSECURED"
                 )
 
+                # 🔥 Order preserved by append sequence
                 rows.append([
                     company,
                     coupon,
@@ -108,7 +107,7 @@ with sync_playwright() as p:
                     security
                 ])
 
-                print(f"✔ Collected: {company} | {interest_payment}")
+                print(f"✔ {company}")
 
             except Exception as e:
                 print("⚠ Skipped row:", e)
@@ -125,8 +124,6 @@ update_google_sheet_by_name(
 
 # ================= TIMESTAMP FOOTER =================
 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S IST")
-print("\n🕒 Last Updated:", timestamp)
-
 append_footer(
     sheet_id=SHEET_ID,
     worksheet_name=WORKSHEET_NAME,
