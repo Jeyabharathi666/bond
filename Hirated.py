@@ -64,7 +64,6 @@ def scrape_high_rated():
                 ytm = safe_text(card.query_selector(
                     'xpath=.//div/a/div[1]/div/div[1]/div/div/span[2]'
                 ))
-
                 tenure = safe_text(card.query_selector(
                     'xpath=.//div/a/div[1]/div/div[1]/div/div/span[3]'
                 ))
