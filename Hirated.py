@@ -61,12 +61,19 @@ def scrape_high_rated():
                     'xpath=.//div/a/div[1]/div/div[1]/div/div/span[1]'
                 ))
 
-                ytm = safe_text(card.query_selector(
+               ''' ytm = safe_text(card.query_selector(
                     'xpath=.//div/a/div[1]/div/div[1]/div/div/span[2]'
                 ))
                 tenure = safe_text(card.query_selector(
                     'xpath=.//div/a/div[1]/div/div[1]/div/div/span[3]'
+                ))'''
+                ytm = safe_text(card.query_selector(
+                    'xpath=.//div/a/div[2]/div/div/div[1]/div/div[2]/div[1]/h3'
                 ))
+                tenure = safe_text(card.query_selector(
+                    'xpath=.//div/a/div[2]/div/div/div[2]/div/div[2]/div[1]/h3'
+                ))
+
 
                 interest = safe_text(card.query_selector(
                     'xpath=.//div/a/div[2]/div/div/div[3]/div/div[1]/span'
