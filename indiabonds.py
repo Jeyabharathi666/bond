@@ -10,7 +10,7 @@ WORKSHEET_NAME = "indiabonds"
 # ❌ REMOVED ordering parameter to preserve UI order
 BASE_URL = (
     "https://www.indiabonds.com/search/"
-    "?filter=%7B%22curated_pack_filter%22%3A%5B%22New+Arrivals%22%5D%7D"
+    "?filter=%7B%7D&ordering=-vendor_security_offer_price__yield_value"
 )
 
 ITEMS_PER_PAGE = 9
