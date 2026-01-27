@@ -191,9 +191,12 @@ with sync_playwright() as p:
                     f"xpath={base}/div[2]/div/div[2]/p"
                 ).text_content(timeout=5000).strip()
 
-                coupon = page.locator(
-                    f"xpath={base}/div[3]/div[1]/p[2]"
-                ).text_content(timeout=5000).strip()
+                raw_coupon = page.locator(f"xpath={base}/div[3]/div[1]/p[2]").text_content(timeout=5000).strip()
+                try:
+                    coupon = float(raw_coupon.replace("%", "").strip()) / 100
+                except:
+                    coupon = None
+
 
                 maturity = page.locator(
                     f"xpath={base}/div[3]/div[2]/p[2]"
