@@ -7,16 +7,6 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-ist_time = datetime.now(
-    ZoneInfo("Asia/Kolkata")
-).strftime("%d-%m-%Y %I:%M:%S %p")
-
-sheet.update(
-    values=[headers_row] + rows,
-    range_name="A1"
-)
-
-sheet.append_row([ist_time])
 # =========================
 # CODE GENERATOR
 # =========================
@@ -132,9 +122,15 @@ headers_row = [
 
 sheet.clear()
 
+ist_time = datetime.now(
+    ZoneInfo("Asia/Kolkata")
+).strftime("%d-%m-%Y %I:%M:%S %p")
+
 sheet.update(
     values=[headers_row] + rows,
     range_name="A1"
 )
+
+
 
 print(f"Uploaded {len(rows)} records")
