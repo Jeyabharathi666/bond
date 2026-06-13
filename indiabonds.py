@@ -130,7 +130,6 @@ sheet.update(
     values=[headers_row] + rows,
     range_name="A1"
 )
-
-
+sheet.append_row([ist_time])
 
 print(f"Uploaded {len(rows)} records")
