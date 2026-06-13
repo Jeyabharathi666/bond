@@ -33,9 +33,9 @@ jobs:
         #run: python wint.py
       - name: 🚀 Run INDIABOND
         run: python indiabonds.py
-      - name: 🚀 Run High Rated
-        run: python Hirated.py
-      - name: 🚀 Run Tax Benefit
-        run: python taxben.py
+      # - name: 🚀 Run High Rated
+      #   run: python Hirated.py
+      # - name: 🚀 Run Tax Benefit
+      #   run: python taxben.py
         
 
