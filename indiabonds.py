@@ -8,7 +8,25 @@ from google.oauth2.service_account import Credentials
 # =========================
 # GOOGLE SHEETS
 # =========================
+import re
 
+def generate_code(company, coupon_rate, maturity_date):
+    try:
+        coupon = str(coupon_rate).replace("%", "").replace(".", "")
+
+        initials = "".join(
+            word[0].upper()
+            for word in company.split()
+            if word and word[0].isalnum()
+        )
+
+        year_match = re.search(r"(\d{4})", str(maturity_date))
+        year = year_match.group(1)[-2:] if year_match else ""
+
+        return f"{coupon}{initials}{year}"
+
+    except Exception:
+        return ""
 SHEET_ID = "1QN5GMlxBKMudeHeWF-Kzt9XsqTt01am7vze1wBjvIdE"
 SHEET_NAME = "indiabond"
 
@@ -59,6 +77,11 @@ while True:
         break
 
     for bond in bonds:
+        code = generate_code(
+            bond.get("issuer_name", ""),
+            bond.get("coupon_rate", ""),
+            bond.get("maturity_date", "")
+        )
         all_rows.append([
             bond.get("issuer_name", ""),
             bond.get("isin", ""),
@@ -68,7 +91,8 @@ while True:
             bond.get("coupon_rate", ""),
             bond.get("price", ""),
             bond.get("security_type", ""),
-            bond.get("yield_value", "")
+            bond.get("yield_value", ""),
+            code
         ])
 
     print(f"Fetched page {page} ({len(bonds)} bonds)")
@@ -87,7 +111,8 @@ headers_row = [
     "coupon_rate",
     "price",
     "security_type",
-    "yield_value"
+    "yield_value",
+    "code"
 ]
 
 sheet.clear()
