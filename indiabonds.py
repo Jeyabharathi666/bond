@@ -1,14 +1,25 @@
-
 import requests
 import gspread
 import os
 import json
-from google.oauth2.service_account import Credentials
-
-# =========================
-# GOOGLE SHEETS
-# =========================
 import re
+from google.oauth2.service_account import Credentials
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+ist_time = datetime.now(
+    ZoneInfo("Asia/Kolkata")
+).strftime("%d-%m-%Y %I:%M:%S %p")
+
+sheet.update(
+    values=[headers_row] + rows,
+    range_name="A1"
+)
+
+sheet.append_row([ist_time])
+# =========================
+# CODE GENERATOR
+# =========================
 
 def generate_code(company, coupon_rate, maturity_date):
     try:
@@ -27,79 +38,83 @@ def generate_code(company, coupon_rate, maturity_date):
 
     except Exception:
         return ""
+
+# =========================
+# GOOGLE SHEETS
+# =========================
+
 SHEET_ID = "1QN5GMlxBKMudeHeWF-Kzt9XsqTt01am7vze1wBjvIdE"
 SHEET_NAME = "indiabond"
 
 creds_dict = json.loads(os.environ["NEW"])
 
-scopes = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive"
-]
-
 creds = Credentials.from_service_account_info(
     creds_dict,
-    scopes=scopes
+    scopes=[
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
 )
 
 client = gspread.authorize(creds)
+
 sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
 
 # =========================
 # INDIA BONDS API
 # =========================
 
-url = "https://prod-api.indiabonds.com/api/v3/web/bond-list/"
+URL = "https://prod-api.indiabonds.com/api/v3/web/bond-list/?page_no=1&page_size=100&sort_by=yield_high_to_low&tag_name=Secured"
 
 headers = {
     "User-Agent": "Mozilla/5.0"
 }
 
-all_rows = []
+response = requests.get(URL, headers=headers)
 
-page = 1
+print("Status Code:", response.status_code)
 
-while True:
+if response.status_code != 200:
+    raise Exception(
+        f"Request failed: {response.status_code}\n{response.text[:500]}"
+    )
 
-    params = {
-        "page_no": page,
-        "page_size": 100,
-        "sort_by": "yield_high_to_low",
-        "tag_name": "Secured"
-    }
+data = response.json()
 
-    response = requests.get(url, params=params, headers=headers)
-    data = response.json()
+# API structure may vary
+bonds = (
+    data.get("bond_list")
+    or data.get("data")
+    or []
+)
 
-    bonds = data.get("bond_list", [])
+rows = []
 
-    if not bonds:
-        break
+for bond in bonds:
 
-    for bond in bonds:
-        code = generate_code(
-            bond.get("issuer_name", ""),
-            bond.get("coupon_rate", ""),
-            bond.get("maturity_date", "")
-        )
-        all_rows.append([
-            bond.get("issuer_name", ""),
-            bond.get("isin", ""),
-            bond.get("rating_combined", ""),
-            bond.get("type_of_bond", ""),
-            bond.get("maturity_date", ""),
-            bond.get("coupon_rate", ""),
-            bond.get("price", ""),
-            bond.get("security_type", ""),
-            bond.get("yield_value", ""),
-            code
-        ])
+    code = generate_code(
+        bond.get("issuer_name", ""),
+        bond.get("coupon_rate", ""),
+        bond.get("maturity_date", "")
+    )
 
-    print(f"Fetched page {page} ({len(bonds)} bonds)")
-    page += 1
+    rows.append([
+        bond.get("issuer_name", ""),
+        bond.get("isin", ""),
+        bond.get("rating_combined", ""),
+        bond.get("type_of_bond", ""),
+        bond.get("maturity_date", ""),
+        bond.get("coupon_rate", ""),
+        bond.get("price", ""),
+        bond.get("security_type", ""),
+        bond.get("yield_value", ""),
+        code
+    ])
+
+print(f"Fetched {len(rows)} bonds")
 
 # =========================
-# WRITE TO SHEET
+# UPLOAD TO SHEET
 # =========================
 
 headers_row = [
@@ -118,8 +133,8 @@ headers_row = [
 sheet.clear()
 
 sheet.update(
-    "A1",
-    [headers_row] + all_rows
+    values=[headers_row] + rows,
+    range_name="A1"
 )
 
-print(f"Uploaded {len(all_rows)} records")
+print(f"Uploaded {len(rows)} records")
